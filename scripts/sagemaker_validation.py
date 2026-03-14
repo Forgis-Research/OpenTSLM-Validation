@@ -438,7 +438,7 @@ def main():
     parser.add_argument('--region', type=str, default=CONFIG['region'],
                         help='AWS region')
     parser.add_argument('--spot', action='store_true',
-                        help='Use spot instances (60-70% cheaper)')
+                        help='Use spot instances (60-70%% cheaper)')
     parser.add_argument('--hf-token', type=str, help='HuggingFace token')
 
     args = parser.parse_args()

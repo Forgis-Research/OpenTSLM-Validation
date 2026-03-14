@@ -49,6 +49,9 @@ outputs/
 *.bin
 *.safetensors
 
+# Environment variables (secrets)
+.env
+
 # OS
 .DS_Store
 Thumbs.db

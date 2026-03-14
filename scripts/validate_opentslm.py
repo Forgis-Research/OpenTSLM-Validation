@@ -189,8 +189,13 @@ def validate_task(
     print(f"\nLoading model from HuggingFace...")
     start_time = time.time()
 
+    # HAR, Sleep, ECG models have LoRA adapters
+    enable_lora = task in ["har", "sleep", "ecg"]
+    if enable_lora:
+        print(f"Enabling LoRA for {task.upper()} task...")
+
     try:
-        model = OpenTSLM.load_pretrained(repo_id, device=device)
+        model = OpenTSLM.load_pretrained(repo_id, device=device, enable_lora=enable_lora)
     except Exception as e:
         print(f"ERROR: Failed to load model: {e}")
         return {"error": str(e), "task": task, "repo_id": repo_id}

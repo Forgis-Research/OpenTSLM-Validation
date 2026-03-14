@@ -1,0 +1,14 @@
+# Requirements for SageMaker training
+# These are installed automatically in the SageMaker PyTorch container
+
+# Core dependencies (usually pre-installed in SageMaker)
+torch>=2.0.0
+numpy>=1.21.0
+scikit-learn>=1.0.0
+matplotlib>=3.5.0
+
+# Experiment tracking
+wandb>=0.15.0
+
+# For local launching (install on your machine)
+# pip install sagemaker boto3

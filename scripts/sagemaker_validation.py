@@ -287,7 +287,7 @@ def launch_validation(
 
     # Create estimator
     estimator = PyTorch(
-        entry_point='sagemaker_entry.py',
+        entry_point='scripts/sagemaker_entry.py',
         source_dir=str(source_dir),
         role=role,
         instance_count=1,

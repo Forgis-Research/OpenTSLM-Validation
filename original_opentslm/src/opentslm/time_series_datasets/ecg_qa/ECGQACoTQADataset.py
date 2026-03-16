@@ -50,7 +50,7 @@ class ECGQACoTQADataset(QADataset):
         # Filter out comparison questions if requested
         if self.exclude_comparison:
             print("Filtering out comparison questions...")
-            
+
             def filter_comparison(dataset):
                 filtered_data = []
                 for sample in dataset:
@@ -59,7 +59,10 @@ class ECGQACoTQADataset(QADataset):
                         raise ValueError(f"Sample missing required 'question_type' field: {sample}")
                     if not question_type.startswith("comparison"):
                         filtered_data.append(sample)
-                return Dataset.from_list(filtered_data)
+                # Compatible with older datasets versions (no from_list method)
+                if not filtered_data:
+                    return dataset.select([])  # Empty dataset
+                return Dataset.from_dict({k: [d[k] for d in filtered_data] for k in filtered_data[0].keys()})
             
             original_train_len = len(train)
             original_val_len = len(val)

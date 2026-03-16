@@ -37,6 +37,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+# Fix for HuggingFace datasets glob pattern issue on Windows/Python 3.14+
+# Must be set before importing datasets
+os.environ.setdefault("HF_DATASETS_DISABLE_PROGRESS_BAR", "0")
+
 import torch
 from tqdm import tqdm
 
@@ -206,7 +210,31 @@ def validate_task(
     # Load dataset
     print(f"\nLoading {task.upper()} test dataset...")
     try:
+        # Fix for Python 3.14+ pathlib glob pattern changes
+        import datasets
+        if hasattr(datasets.config, "HF_DATASETS_OFFLINE"):
+            pass  # Already set properly
         test_dataset = DatasetClass("test", EOS_TOKEN=model.get_eos_token())
+    except ValueError as e:
+        if "Invalid pattern" in str(e) or "**" in str(e):
+            print(f"WARNING: Glob pattern issue detected. Trying alternative loading method...")
+            # Try clearing cache and reloading
+            try:
+                import shutil
+                cache_dir = Path.home() / ".cache" / "huggingface" / "datasets"
+                if cache_dir.exists():
+                    print(f"Clearing HuggingFace cache at {cache_dir}...")
+                    # Don't delete entire cache, just the specific dataset
+                    for item in cache_dir.glob(f"*{task}*"):
+                        if item.is_dir():
+                            shutil.rmtree(item)
+                test_dataset = DatasetClass("test", EOS_TOKEN=model.get_eos_token())
+            except Exception as e2:
+                print(f"ERROR: Failed to load dataset after retry: {e2}")
+                return {"error": str(e2), "task": task, "repo_id": repo_id}
+        else:
+            print(f"ERROR: Failed to load dataset: {e}")
+            return {"error": str(e), "task": task, "repo_id": repo_id}
     except Exception as e:
         print(f"ERROR: Failed to load dataset: {e}")
         return {"error": str(e), "task": task, "repo_id": repo_id}

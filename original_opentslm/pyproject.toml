@@ -55,6 +55,8 @@ dependencies = [
     "einops>=0.6",
     "wfdb>=4.0",
     "open-flamingo>=0.0.2",
+    "wandb>=0.15",
+    "python-dotenv>=1.0",
 ]
 
 [project.urls]

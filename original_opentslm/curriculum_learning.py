@@ -9,6 +9,11 @@ import os
 import json
 import os as _os
 import argparse
+import wandb
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 from typing import List, Optional, Dict, Any, Callable
 from opentslm.time_series_datasets.TSQADataset import TSQADataset
 from opentslm.time_series_datasets.m4.M4QADataset import M4QADataset
@@ -110,6 +115,8 @@ class CurriculumTrainer:
         dist_backend: str = "nccl",
         local_rank: int = int(os.environ.get("LOCAL_RANK", 0)),
         llm_id: str = None,
+        wandb_enabled: bool = False,
+        wandb_project: str = "opentslm-training",
     ):
         """
         Initialize the curriculum trainer.
@@ -131,6 +138,8 @@ class CurriculumTrainer:
             )
         self.llm_id = llm_id
         self.llm_id_safe = self._sanitize_llm_id(llm_id)
+        self.wandb_enabled = wandb_enabled
+        self.wandb_project = wandb_project
 
         # Distributed training parameters
         self.gradient_checkpointing = gradient_checkpointing
@@ -147,6 +156,20 @@ class CurriculumTrainer:
         self.model = self._initialize_model()
         self.results_dir = os.path.join("results", self.llm_id_safe, self.model_type)
         self._create_results_dir()
+
+        # Initialize wandb on rank 0 only
+        if self.wandb_enabled and self.rank == 0:
+            wandb.init(
+                project=self.wandb_project,
+                config={
+                    "model_type": self.model_type,
+                    "llm_id": self.llm_id,
+                    "device": str(self.device),
+                    "gradient_checkpointing": self.gradient_checkpointing,
+                    "world_size": self.world_size,
+                },
+            )
+            print(f"📊 Wandb initialized: project={self.wandb_project}")
 
     def _get_device(self) -> str:
         """Get the best available device."""
@@ -857,6 +880,10 @@ class CurriculumTrainer:
                 else:
                     print(f"   {metric}: {value}")
 
+            # Log evaluation metrics to wandb
+            if self.wandb_enabled:
+                wandb.log({f"{stage_name}/{k}": v for k, v in metrics.items() if isinstance(v, (int, float))})
+
         # Signal other ranks that evaluation is complete
         if dist.is_initialized():
             dist.barrier()
@@ -1157,6 +1184,16 @@ class CurriculumTrainer:
 
                 # Save loss history for this epoch
                 self._save_loss_history(stage_name, epoch, avg_train_loss, avg_val_loss)
+
+                # Log to wandb
+                if self.wandb_enabled and self.rank == 0:
+                    wandb.log({
+                        "epoch": epoch,
+                        "train_loss": avg_train_loss,
+                        "val_loss": avg_val_loss,
+                        "learning_rate": scheduler.get_last_lr()[0],
+                        "stage": stage_name,
+                    })
 
                 # Early stopping - all ranks need to make the same decision
                 should_save = avg_val_loss + 1e-4 < best_val_loss
@@ -1687,6 +1724,17 @@ def main():
         "--verbose", default=False, action="store_true", help="Enable verbose logging"
     )
 
+    # Wandb arguments
+    parser.add_argument(
+        "--wandb", default=False, action="store_true", help="Enable Weights & Biases logging"
+    )
+    parser.add_argument(
+        "--wandb_project",
+        type=str,
+        default="opentslm-training",
+        help="Wandb project name (default: opentslm-training)",
+    )
+
     args = parser.parse_args()
 
     # Set up global logging
@@ -1702,6 +1750,8 @@ def main():
         dist_backend=args.dist_backend,
         local_rank=args.local_rank,
         llm_id=args.llm_id,
+        wandb_enabled=args.wandb,
+        wandb_project=args.wandb_project,
     )
 
     # Run curriculum
@@ -1717,6 +1767,10 @@ def main():
                 logger.info(f"  {metric}: {value:.4f}")
             else:
                 logger.info(f"  {metric}: {value}")
+
+    # Finish wandb run
+    if args.wandb:
+        wandb.finish()
 
 
 if __name__ == "__main__":
